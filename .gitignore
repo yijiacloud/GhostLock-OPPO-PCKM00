@@ -1,0 +1,31 @@
+# Firmware / extracted kernel (large, proprietary)
+boot.img
+boot/
+analysis/*.tar.xz
+analysis/*.tar
+
+# Build artifacts
+exploit/build/
+*.o
+*.so.tmp
+exploit/build_embed.sh
+
+# Compiled PoC copies at repo root
+/preload.so
+
+# Device info report (private)
+drive.txt
+
+# Local helper scripts (not part of the published toolset)
+analysis/build_ghostlock.sh
+analysis/build_preload.sh
+analysis/compile_offsetof.sh
+analysis/offset_probe_full.c
+
+# Intermediate dumps (regenerate via analysis/)
+analysis/kallsyms_v2e.txt
+analysis/cve_functions_dump.txt
+
+# OS junk
+Thumbs.db
+.DS_Store
